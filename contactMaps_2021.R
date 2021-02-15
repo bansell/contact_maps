@@ -8,7 +8,7 @@ library(tidyverse);
 #library(Rpdb)   #required
 
 
-setwd("~/Dropbox/protein_modelling/contact_maps/bundle/")
+setwd("")
 
 #User input:
 ang_thresh <- 10   #Maximum 3D distance in Å between AA residues in the plot. Default = 10; Increasing this number makes a denser plot.
