@@ -7,8 +7,10 @@ library(tidyverse);
 #library(plotly) #required
 #library(Rpdb)   #required
 
+rm(list=ls())
+gc()
 
-setwd("")
+setwd('')
 
 #User input:
 ang_thresh <- 10   #Maximum 3D distance in Å between AA residues in the plot. Default = 10; Increasing this number makes a denser plot.
@@ -101,35 +103,46 @@ comb_recal <- comb %>%
   left_join(meta,by=c('x2'='resid')) %>% rename(res_x2 = resname) 
 
 
+
+
+#Toggle presence of subst_tbl object for testing:
+
+#st_reserve <- subst_tbl
+#rm(subst_tbl)
+#subst_tbl <- st_reserve
+
+
+
 if(any(ls() =='subst_tbl')){
-  comb_recal <- comb_recal %>% 
+  
+  COMB_MUT <- comb_recal %>% 
     left_join(subst_tbl,by=c('x1'='RES_POS')) %>% rename(x1_RES_mut =RES_NAME) %>% 
     left_join(subst_tbl,by=c('x2'='RES_POS')) %>% rename(x2_RES_mut =RES_NAME ) %>% 
     rowwise() %>% 
     mutate(res_x1 = ifelse(!is.na(x1_RES_mut), paste0(res_x1,'>',x1_RES_mut),res_x1),
            res_x2 = ifelse(!is.na(x2_RES_mut), paste0(res_x2,'>',x2_RES_mut),res_x2))
-                              
   
-  myPlot <- comb_recal %>%  filter(Angstrom < ang_thresh) %>% 
-    mutate(SNPx1 = ifelse(x1 %in% nonSyn,'y','n'),
-           SNPx2 = ifelse(x2 %in% nonSyn,'y','n')) %>% 
-    ggplot(aes(x=x1,y=x2)) + geom_point(col= 'dodger blue') +
+  
+  myPlot <- COMB_MUT %>%  filter(Angstrom < ang_thresh) %>% 
+    ggplot(aes(x=x1,y=x2)) + 
+    #geom_point(col= 'dodger blue') +
+    geom_point(aes(col= Angstrom, 
+                   text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2)))  +
     geom_abline() +
-    geom_point(data = . %>% filter(SNPx1=='y'|SNPx2=='y' ), col='#F8766d',
-               aes(text=paste0(x1,'. ',res_x1,' meets ',x2,'. ',res_x2))) 
+    geom_point(data = . %>% filter(!is.na(x1_RES_mut) | !is.na(x2_RES_mut )), col='#F8766d',
+               aes(text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2))) +
+    labs(col = 'Ångstrom')
+  
   
 }else{
-  comb_recal <- comb_recal
   
   myPlot <- comb_recal %>%  filter(Angstrom < ang_thresh) %>% 
-    mutate(SNPx1 = ifelse(x1 %in% nonSyn,'y','n'),
-           SNPx2 = ifelse(x2 %in% nonSyn,'y','n')) %>% 
-    ggplot(aes(x=x1,y=x2)) + geom_point(col= 'dodger blue') +
+    ggplot(aes(x=x1,y=x2)) + 
     geom_abline() +
-    geom_point(data = . %>% filter(SNPx1=='y'|SNPx2=='y' ), col='#F8766d',
-               aes(text=paste0(x1,'. ',res_x1,' meets ',x2,'. ',res_x2))) 
+    geom_point(aes(col= Angstrom, text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2)), cex=0.75) +
+    labs(col = 'Ångstrom')
   
 }
-  
 
-ggplotly(myPlot, tooltip = 'text')
+plotly::ggplotly(myPlot , tooltip = 'text')
+
