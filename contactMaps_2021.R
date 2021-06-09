@@ -4,13 +4,14 @@
 #email: ansell.b@wehi.edu.au
 
 library(tidyverse); 
+library(here)
 #library(plotly) #required
 #library(Rpdb)   #required
 
 rm(list=ls())
 gc()
 
-setwd('')
+
 
 #User input:
 ang_thresh <- 10   #Maximum 3D distance in Å between AA residues in the plot. Default = 10; Increasing this number makes a denser plot.
@@ -131,7 +132,8 @@ if(any(ls() =='subst_tbl')){
     geom_abline() +
     geom_point(data = . %>% filter(!is.na(x1_RES_mut) | !is.na(x2_RES_mut )), col='#F8766d',
                aes(text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2))) +
-    labs(col = 'Ångstrom')
+    labs(col = 'Ångstrom') +
+    coord_equal()
   
   
 }else{
@@ -140,7 +142,8 @@ if(any(ls() =='subst_tbl')){
     ggplot(aes(x=x1,y=x2)) + 
     geom_abline() +
     geom_point(aes(col= Angstrom, text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2)), cex=0.75) +
-    labs(col = 'Ångstrom')
+    labs(col = 'Ångstrom') +
+    coord_equal()
   
 }
 
