@@ -4,58 +4,63 @@
 #email: ansell.b@wehi.edu.au
 
 library(tidyverse); 
-library(here)
-#library(plotly) #required
-#library(Rpdb)   #required
+library(plotly)
+library(Rpdb)
+#library(rgl)
+#library(gplots);
+#library(ggplot2)
+#library(data.table)
+#devtools::install_github('ropensci/plotly') #https://community.plot.ly/t/ggplotly-giving-error-unused-argument-environment/3538/2
 
-rm(list=ls())
-gc()
+#TBC: recode angst. distance as variable
 
+setwd("~/Dropbox/protein_modelling/contact_maps/bundle/")
 
+rm(list=ls()); gc()
 
-#User input:
-ang_thresh <- 10   #Maximum 3D distance in Å between AA residues in the plot. Default = 10; Increasing this number makes a denser plot.
-primary_dist <- 10 #Distance between residues in primary AA sequence. Default = 10 (essentially controls the density around x-y line)
+#user input:
+ang_thresh <- 10
 
+set.seed(1234)
+nonSyn <- sample(125,10,replace=FALSE) #vector of mutated/substituted AAs, by position
 
-# for testing:
-source('generate_random_EBA_nonSyn.R') #for testing with EBA175
-subst_tbl  <- read_csv('EBA175RII_new_subst_table.csv')  #two column csv file containing the position (RES_POS) and substituted AA residue (RES_NAME)
-
-hit_chain <- 'A' #pdb chain to render. default should be A.
-
-#EITHER get pdb files from local .pdb file e.g
-local_file <- "EBA175RII_new.pdb"
-pdb_import <- Rpdb::read.pdb(local_file) # if pdb file is directly supplied, read from .pdb file
-
-#OR hit the PDB API (un-comment next 4 lines). NB this will fail if also using test file EBA175RII_new_subst_table.csv
-
-#hit_pdb <- "2WLB"; #hit_pdb <- "6VOB";  #hit_pdb <- "4O75";
-#Download pdb file from rcsb:
-#system(paste0("curl -s https://files.rcsb.org/view/", hit_pdb, ".pdb > ",hit_pdb, ".pdb"))
-#pdb_import <- Rpdb::read.pdb(paste0(hit_pdb,".pdb")); 
+#hit_pdb <- "2WLB";
+hit_pdb <- "6VOB"; 
+#hit_pdb <- "4O75";
 
 
-#TBD: detect whether local_file, or a PDB code is present in input arguments. run ifelse statement.
+########## ########## ########## ########## ########## ########## ##########
+########## ########## ########## ########## ########## ########## ##########
 
+#AAs_20 <- readRDS('AminoAcids_abv.Rds')
 
-############ ############ ############ ############ ############ ############ ############ ############ ############
-############ ############ ############ ############ ############ ############ ############ ############ ############
+hit_chain <- 'A'
 
+system(paste0("curl -s https://files.rcsb.org/view/", hit_pdb, ".pdb > ",hit_pdb, ".pdb"))
 
+pdb_import <- Rpdb::read.pdb(paste0(hit_pdb,".pdb")); 
 names(pdb_import$atom)
 
 head(pdb_import$atoms)
-summary(pdb_import$atoms$resid); min(pdb_import$atoms$resid)
-
 pdb_import$atoms %>% filter(elename == "CA") %>% filter(chainid == hit_chain) %>% select(x1,x2,x3) %>% head()
-
-
 
 meta <- pdb_import$atoms %>% filter(elename == "CA") %>% filter(chainid == hit_chain) %>% select(resid,resname) %>% distinct()
 xyz  <- pdb_import$atoms %>% filter(elename=="CA") %>% select(x1,x2,x3)
 
 min(meta$resid)
+
+# #remove MODEL line from file:
+# system("cat model1.pdb | grep -v MODEL | tr -s ' ' ',' > mod_model1.pdb")
+# 
+# query <- "mod_model1.pdb" 
+# 
+# query_pdb <- read.csv(query,header=FALSE); 
+# head(query_pdb)
+# 
+# names(query_pdb) <- c('recname','eleid','elename','resname','chainid','x1','x2','x3','occ','temp')
+# 
+# xyz <- query_pdb %>% filter(elename=="CA") %>% select(x1,x2,x3)
+
 
 xyz[,1] <- as.numeric(as.character(xyz[,1]))
 xyz[,2] <- as.numeric(as.character(xyz[,2]))
@@ -89,7 +94,7 @@ distances <- cbind(data.frame(ind), Angstrom)
 
 
 #exclude data within 5 AAs from each other in the primary peptide sequence:
-distances_filt <- distances %>% mutate(AAdist = x2-x1) %>% filter(abs(AAdist) > primary_dist) 
+distances_filt <- distances %>% mutate(AAdist = x2-x1) %>% filter(abs(AAdist)>5) 
 
 #mirror df and append to create square DF for plotting:
 distancesMirror <- distances_filt %>% rename(x2t = x1, x1t=x2) %>% rename(x2=x2t, x1=x1t) %>% select(2,1,3)
@@ -97,55 +102,28 @@ distancesMirror <- distances_filt %>% rename(x2t = x1, x1t=x2) %>% rename(x2=x2t
 comb <- bind_rows(distances_filt %>% select(1:3), distancesMirror) 
 
 
-#Add n to all x and y axes to represent the AA position from which Chain A was crystallized. Then annotate with AA IDs. 
-comb_recal <- comb %>%
-  mutate(x1=x1 + min(meta$resid), x2= x2 + min(meta$resid) ) %>% 
+#Add n to all x and y axes to represent the AA position from which Chain A was crystallized
+comb_recal <- comb %>% mutate(x1=x1 + min(meta$resid), x2= x2 + min(meta$resid) ) %>% 
   left_join(meta,by=c('x1'='resid')) %>% rename(res_x1 = resname) %>% 
   left_join(meta,by=c('x2'='resid')) %>% rename(res_x2 = resname) 
 
+comb_recal %>% filter(Angstrom < ang_thresh) %>% ggplot(aes(x=x1,y=x2)) + geom_point()
 
+comb_recal %>% filter(Angstrom < ang_thresh) %>% select(1,2) %>% summary() #125 
 
+dat_for_plot <- comb_recal %>% as_tibble() %>%  filter(Angstrom < ang_thresh) %>% 
+  mutate(SNPx1 = ifelse(x1 %in% nonSyn,'y','n'),
+         SNPx2 = ifelse(x2 %in% nonSyn,'y','n')) %>% 
+  distinct()
 
-#Toggle presence of subst_tbl object for testing:
+myPlot <- dat_for_plot %>% 
+  ggplot(aes(x=x1,y=x2)) + geom_point(col= 'dodger blue') +
+  geom_abline() +
+  geom_point(data = . %>% filter(SNPx1=='y'|SNPx2=='y' ), col='#F8766d',
+             aes(text=paste0(x1,'. ',res_x1,' meets ',x2,'. ',res_x2))) 
 
-#st_reserve <- subst_tbl
-#rm(subst_tbl)
-#subst_tbl <- st_reserve
+tidyExt::default_GG_col(2)
 
+ggplotly(myPlot, tooltip = 'text')
 
-
-if(any(ls() =='subst_tbl')){
-  
-  COMB_MUT <- comb_recal %>% 
-    left_join(subst_tbl,by=c('x1'='RES_POS')) %>% rename(x1_RES_mut =RES_NAME) %>% 
-    left_join(subst_tbl,by=c('x2'='RES_POS')) %>% rename(x2_RES_mut =RES_NAME ) %>% 
-    rowwise() %>% 
-    mutate(res_x1 = ifelse(!is.na(x1_RES_mut), paste0(res_x1,'>',x1_RES_mut),res_x1),
-           res_x2 = ifelse(!is.na(x2_RES_mut), paste0(res_x2,'>',x2_RES_mut),res_x2))
-  
-  
-  myPlot <- COMB_MUT %>%  filter(Angstrom < ang_thresh) %>% 
-    ggplot(aes(x=x1,y=x2)) + 
-    #geom_point(col= 'dodger blue') +
-    geom_point(aes(col= Angstrom, 
-                   text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2)))  +
-    geom_abline() +
-    geom_point(data = . %>% filter(!is.na(x1_RES_mut) | !is.na(x2_RES_mut )), col='#F8766d',
-               aes(text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2))) +
-    labs(col = 'Ångstrom') +
-    coord_equal()
-  
-  
-}else{
-  
-  myPlot <- comb_recal %>%  filter(Angstrom < ang_thresh) %>% 
-    ggplot(aes(x=x1,y=x2)) + 
-    geom_abline() +
-    geom_point(aes(col= Angstrom, text=paste0(res_x1,'_',x1,' meets ',res_x2,'_',x2)), cex=0.75) +
-    labs(col = 'Ångstrom') +
-    coord_equal()
-  
-}
-
-plotly::ggplotly(myPlot , tooltip = 'text')
-
+sessionInfo()
